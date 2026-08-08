@@ -583,12 +583,20 @@ function App() {
       if (matchesHotkey(e, hk.prevBeat)) {
         e.preventDefault();
         const step = noteDurationRef.current;
-        setSelectedBeat(b => Math.max(0, b - step));
+        const snap = snapUnitRef.current;
+        setSelectedBeat(b => {
+          const next = Math.max(0, b - step);
+          return next <= 0 ? 0 : Math.round(next / snap) * snap;
+        });
       }
       if (matchesHotkey(e, hk.nextBeat)) {
         e.preventDefault();
         const step = noteDurationRef.current;
-        setSelectedBeat(b => Math.min(totalBeats - 1, b + step));
+        const snap = snapUnitRef.current;
+        setSelectedBeat(b => {
+          const next = Math.min(totalBeats - 1, b + step);
+          return next >= totalBeats - 1 ? totalBeats - 1 : Math.round(next / snap) * snap;
+        });
       }
       if (matchesHotkey(e, hk.returnToStart)) {
         e.preventDefault();
@@ -843,7 +851,7 @@ function App() {
   }, [totalBeats, undo, redo, setNotes]);
 
   const handleFretClick = useCallback((stringIndex, fret, stayInPlace = false) => {
-    const beat = Math.round(selectedBeat * 10000) / 10000;
+    const beat = Math.round(selectedBeat / snapUnit) * snapUnit;
     const exactMatch = notes.findIndex(
       n => n.stringIndex === stringIndex && n.fret === fret && Math.abs(n.beat - beat) < 0.001
     );
@@ -858,13 +866,14 @@ function App() {
     });
     // Only advance playhead when adding a note, not when erasing
     if (exactMatch < 0 && fretboardAutoForward !== stayInPlace) {
-      const noteEnd = Math.round((selectedBeat + noteDuration) * 10000) / 10000;
-      const nextBeat = Math.ceil(noteEnd / snapUnit) * snapUnit;
-      setSelectedBeat(Math.min(nextBeat, totalBeats - 1));
+      setSelectedBeat(b => {
+        const next = Math.min(totalBeats - 1, b + noteDuration);
+        return next >= totalBeats - 1 ? totalBeats - 1 : Math.round(next / snapUnit) * snapUnit;
+      });
     }
   }, [selectedBeat, noteDuration, snapUnit, totalBeats, defaultVelocity, fretboardAutoForward, notes]);
   const handleAdjacentClick = useCallback((stringIndex, fret, stayInPlace = false) => {
-    const beat = Math.round(selectedBeat * 10000) / 10000;
+    const beat = Math.round(selectedBeat / snapUnit) * snapUnit;
     setNotes(prev => {
       const exactMatch = prev.findIndex(
         n => n.stringIndex === stringIndex && n.fret === fret && Math.abs(n.beat - beat) < 0.001
@@ -875,9 +884,10 @@ function App() {
       return [...prev, { stringIndex, fret, beat, duration: noteDuration, velocity: defaultVelocity }];
     });
     if (fretboardAutoForward && stayInPlace === fretboardAutoForwardExcludeAdjacent) {
-      const noteEnd = Math.round((selectedBeat + noteDuration) * 10000) / 10000;
-      const nextBeat = Math.ceil(noteEnd / snapUnit) * snapUnit;
-      setSelectedBeat(Math.min(nextBeat, totalBeats - 1));
+      setSelectedBeat(b => {
+        const next = Math.min(totalBeats - 1, b + noteDuration);
+        return next >= totalBeats - 1 ? totalBeats - 1 : Math.round(next / snapUnit) * snapUnit;
+      });
     }
   }, [selectedBeat, noteDuration, snapUnit, totalBeats, defaultVelocity, fretboardAutoForward, fretboardAutoForwardExcludeAdjacent]);
 
