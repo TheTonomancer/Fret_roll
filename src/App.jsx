@@ -385,7 +385,10 @@ function App() {
     if (data.loopEnd !== undefined) setLoopEnd(data.loopEnd);
     if (data.stringColors !== undefined) setStringColors(data.stringColors);
     if (data.synesthesia !== undefined) setSynesthesia(data.synesthesia);
-    if (data.subdivisions !== undefined) setSubdivisions(data.subdivisions);
+    if (data.subdivisions !== undefined) {
+      setSubdivisions(data.subdivisions);
+      setNoteDuration(1 / data.subdivisions);
+    }
     if (data.markers !== undefined) setMarkers(data.markers);
     if (data.metronome !== undefined) setMetronome(data.metronome);
     if (data.sessionSchemes !== undefined) {
