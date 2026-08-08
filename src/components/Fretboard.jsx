@@ -255,10 +255,7 @@ export default function Fretboard({ onNoteClick, onAdjacentClick, onMoveNote, on
           window.removeEventListener('keydown', handleKeyDown);
           window.removeEventListener('keyup', handleKeyUp);
           if (activeNote && setSelectedBeat && (fretboardAutoForward !== ctrlKeyHeld)) {
-            const noteEnd = Math.round((activeNote.beat + finalDuration) * 10000) / 10000;
-            const nextBeat = Math.ceil(noteEnd / snapUnit) * snapUnit;
-            const clamped = Math.min(nextBeat, totalBeats - 1);
-            setSelectedBeat(clamped);
+            setSelectedBeat(b => Math.min(totalBeats - 1, b + finalDuration));
           }
           window.removeEventListener('mousemove', handleDurationMove);
           window.removeEventListener('mouseup', handleDurationUp);
