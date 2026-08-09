@@ -69,16 +69,19 @@ function App() {
 
   const undoStackRef = useRef([]);
   const redoStackRef = useRef([]);
+  const autoForwardLastActionRef = useRef(false);
 
   // Snapshot helpers for undo/redo
-  const takeSnapshot = useCallback(() => ({
+const takeSnapshot = useCallback(() => ({
     tracks: JSON.parse(JSON.stringify(tracksRef.current)),
     activeTrackId: activeTrackIdRef.current,
     timeSignature: timeSigRef.current,
     barSubdivisions: barSubsRef.current,
+    selectedBeat: selectedBeatRef.current,
+    autoForward: autoForwardLastActionRef.current,
   }), []);
 
-  const restoreSnapshot = useCallback((snap) => {
+const restoreSnapshot = useCallback((snap) => {
     // Legacy: plain array means notes-only snapshot
     if (Array.isArray(snap)) {
       setActiveNotes(() => snap);
@@ -89,6 +92,7 @@ function App() {
       setActiveNotes(() => snap.notes);
       if (snap.timeSignature) setTimeSignature(snap.timeSignature);
       if (snap.barSubdivisions) setBarSubdivisions(snap.barSubdivisions);
+      if (snap.selectedBeat !== undefined && snap.autoForward) setSelectedBeat(snap.selectedBeat);
       return;
     }
     setTracksTracked(() => snap.tracks);
@@ -98,6 +102,7 @@ function App() {
     }
     if (snap.timeSignature) setTimeSignature(snap.timeSignature);
     if (snap.barSubdivisions) setBarSubdivisions(snap.barSubdivisions);
+    if (snap.selectedBeat !== undefined && snap.autoForward) setSelectedBeat(snap.selectedBeat);
   }, [setTracksTracked, setActiveNotes]);
 
   // setNotes: pushes undo, for one-shot operations
@@ -858,6 +863,10 @@ function App() {
     const exactMatch = notes.findIndex(
       n => n.stringIndex === stringIndex && n.fret === fret && Math.abs(n.beat - beat) < 0.001
     );
+    const willAutoForward = exactMatch < 0 && fretboardAutoForward !== stayInPlace;
+    if (willAutoForward) {
+      autoForwardLastActionRef.current = true;
+    }
     setNotes(prev => {
       if (exactMatch >= 0) {
         return prev.filter((_, i) => i !== exactMatch);
@@ -868,31 +877,40 @@ function App() {
       return [...filtered, { stringIndex, fret, beat, duration: noteDuration, velocity: defaultVelocity }];
     });
     // Only advance playhead when adding a note, not when erasing
-    if (exactMatch < 0 && fretboardAutoForward !== stayInPlace) {
+    if (willAutoForward) {
       setSelectedBeat(b => {
         const next = Math.min(totalBeats - 1, b + noteDuration);
         return next >= totalBeats - 1 ? totalBeats - 1 : Math.round(next / snapUnit) * snapUnit;
       });
+      autoForwardLastActionRef.current = false;
     }
   }, [selectedBeat, noteDuration, snapUnit, totalBeats, defaultVelocity, fretboardAutoForward, notes]);
   const handleAdjacentClick = useCallback((stringIndex, fret, stayInPlace = false) => {
     const beat = Math.round(selectedBeat / snapUnit) * snapUnit;
+    const exactMatch = notes.findIndex(
+      n => n.stringIndex === stringIndex && n.fret === fret && Math.abs(n.beat - beat) < 0.001
+    );
+    const willAutoForward = fretboardAutoForward && stayInPlace === fretboardAutoForwardExcludeAdjacent && exactMatch < 0;
+    if (willAutoForward) {
+      autoForwardLastActionRef.current = true;
+    }
     setNotes(prev => {
-      const exactMatch = prev.findIndex(
+      const idx = prev.findIndex(
         n => n.stringIndex === stringIndex && n.fret === fret && Math.abs(n.beat - beat) < 0.001
       );
-      if (exactMatch >= 0) {
-        return prev.filter((_, i) => i !== exactMatch);
+      if (idx >= 0) {
+        return prev.filter((_, i) => i !== idx);
       }
       return [...prev, { stringIndex, fret, beat, duration: noteDuration, velocity: defaultVelocity }];
     });
-    if (fretboardAutoForward && stayInPlace === fretboardAutoForwardExcludeAdjacent) {
+    if (willAutoForward) {
       setSelectedBeat(b => {
         const next = Math.min(totalBeats - 1, b + noteDuration);
         return next >= totalBeats - 1 ? totalBeats - 1 : Math.round(next / snapUnit) * snapUnit;
       });
+      autoForwardLastActionRef.current = false;
     }
-  }, [selectedBeat, noteDuration, snapUnit, totalBeats, defaultVelocity, fretboardAutoForward, fretboardAutoForwardExcludeAdjacent]);
+  }, [selectedBeat, noteDuration, snapUnit, totalBeats, defaultVelocity, fretboardAutoForward, fretboardAutoForwardExcludeAdjacent, notes]);
 
   const handleMoveNote = useCallback((fromString, fromFret, toString, toFret) => {
     setNotes(prev => {
