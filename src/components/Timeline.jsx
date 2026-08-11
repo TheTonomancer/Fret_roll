@@ -8,7 +8,7 @@ import {
   TOTAL_PITCH_ROWS, PITCH_LIST, noteToPitchRow, pitchRowToMidi,
   midiToNoteName, getMidiNote, closestComboForPitch, pitchRowCombos, getComboForPosition
 } from '../utils/pitchMap';
-import { totalColumns, barStartBeats, beatToBar, beatLabel, isBarStart, remapNotes, beatToX, xToBeat, gridTotalWidth, colWidth, durationToWidth, timeToBeat } from '../utils/barLayout';
+import { totalColumns, barStartBeats, beatToBar, beatLabel, isBarStart, remapNotes, beatToX as beatToXUtil, xToBeat as xToBeatUtil, gridTotalWidth, colWidth, durationToWidth as durationToWidthUtil, timeToBeat } from '../utils/barLayout';
 import { matchesWheelHotkey } from '../utils/hotkeys';
 import { createAutoPan } from '../utils/autoPan';
 
@@ -57,6 +57,8 @@ export default function Timeline({
   bodyRefExternal,
   position = 0,
   setPosition,
+  swing,
+  swungDisplay,
 }) {
   const bodyRef = useRef(null);
   const headerRef = useRef(null);
@@ -67,7 +69,11 @@ export default function Timeline({
   const rowTopPx = (stringIndex, fret) => (totalRows - 1 - noteToPitchRow(stringIndex, fret)) * rowHeight;
   const pitchRowTopPx = (pitchRow) => (totalRows - 1 - pitchRow) * rowHeight;
   const totalCols = totalColumns(barSubdivisions);
-  const gridWidth = gridTotalWidth(barSubdivisions, cellWidth);
+  const swingActive = swungDisplay && swing !== 50;
+  const beatToX = (beat, barSubs, cw) => beatToXUtil(beat, barSubs, cw, swingActive ? swing : null, swingActive);
+  const xToBeat = (x, barSubs, cw, snap = true) => xToBeatUtil(x, barSubs, cw, snap, swingActive ? swing : null, swingActive);
+  const durationToWidth = (beat, duration, barSubs, cw) => durationToWidthUtil(beat, duration, barSubs, cw, swingActive ? swing : null, swingActive);
+  const gridWidth = swingActive ? beatToX(totalCols, barSubdivisions, cellWidth) : gridTotalWidth(barSubdivisions, cellWidth);
   const starts = barStartBeats(barSubdivisions);
   const draggingRef = useRef(null);   // resize drag
   const noteDragRef = useRef(null);   // note move drag
