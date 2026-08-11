@@ -46,6 +46,7 @@ function defaultSession() {
   return {
     notes: [],
     bpm: BPM,
+    swing: 50,
     loop: false,
     loopStart: 0,
     loopEnd: NUM_BARS * SUBDIVISIONS,
@@ -62,6 +63,7 @@ export function getSessionState(appState) {
     projectName: appState.projectName,
     tracks: appState.tracks,
     bpm: appState.bpm,
+    swing: appState.swing,
     loop: appState.loop,
     loopStart: appState.loopStart,
     loopEnd: appState.loopEnd,
