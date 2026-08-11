@@ -3,7 +3,7 @@ import Fretboard from './components/Fretboard';
 import Timeline from './components/Timeline';
 import { playNote, playNoteAtTime, playClickAtTime, getAudioContext, getMasterOut, getNoteName, INSTRUMENTS, getAllInstruments, setInstrument, getInstrument, saveCustomPreset } from './utils/audio';
 import { NUM_BARS, SUBDIVISIONS, BPM as DEFAULT_BPM } from './utils/constants';
-import { defaultBarSubdivisions, totalColumns, beatToBar, beatToTime, colDurationAtBeat, remapNotes, barStartBeats } from './utils/barLayout';
+import { defaultBarSubdivisions, totalColumns, beatToBar, beatToTime, colDurationAtBeat, remapNotes, barStartBeats, applySwingBeat, amountToRatio, ratioToAmount } from './utils/barLayout';
 import { loadAudioFile, computeWaveformPeaks } from './utils/audioFile';
 import { ensureReady as ensureStretchReady, createStretchNode, setStretchTempo } from './utils/rubberbandStretch';
 import { putAudioFile, getAudioFile, deleteAudioFile } from './utils/audioStore';
@@ -174,6 +174,9 @@ const restoreSnapshot = useCallback((snap) => {
   selectedNotesRef.current = selectedNotes;
   const [timeSignature, setTimeSignature] = useState([4, 4]); // [numerator, denominator]
   const [bpm, setBpm] = useState(DEFAULT_BPM);
+  const [swing, setSwing] = useState(50);
+  const swingRef = useRef(swing);
+  swingRef.current = swing;
 
   // Live tempo on bpm change: BufferSource.playbackRate does the time-stretch, rubberband
   // corrects the resulting pitch shift via pitch_scale. Update both so they track bpm.
@@ -227,6 +230,12 @@ const restoreSnapshot = useCallback((snap) => {
       const saved = JSON.parse(localStorage.getItem('guitar-roll-hover-pill'));
       return { fretboard: true, pianoRoll: true, ...saved };
     } catch { return { fretboard: true, pianoRoll: true }; }
+  });
+  const [swungDisplay, setSwungDisplay] = useState(() => {
+    try {
+      const saved = localStorage.getItem('guitar-roll-swung-display');
+      return saved === null ? false : saved === 'true';
+    } catch { return false; }
   });
   const [fretboardAutoForward, setFretboardAutoForward] = useState(() => {
     try {
@@ -385,6 +394,7 @@ const restoreSnapshot = useCallback((snap) => {
       });
     }
     if (data.bpm !== undefined) setBpm(data.bpm);
+    if (data.swing !== undefined) setSwing(data.swing);
     if (data.loop !== undefined) setLoop(data.loop);
     if (data.loopStart !== undefined) setLoopStart(data.loopStart);
     if (data.loopEnd !== undefined) setLoopEnd(data.loopEnd);
@@ -485,14 +495,14 @@ const restoreSnapshot = useCallback((snap) => {
     const interval = setInterval(() => {
       const state = getSessionState({
         tracks: tracksRef.current,
-        bpm, loop, loopStart, loopEnd,
+        bpm, swing, loop, loopStart, loopEnd,
         stringColors, synesthesia, sessionScheme, sessionSchemes,
         projectName, subdivisions, metronome, barSubdivisions, timeSignature, markers,
       });
       saveAutosave(state);
     }, 30000);
     return () => clearInterval(interval);
-  }, [autoSave, bpm, loop, loopStart, loopEnd, stringColors, synesthesia, sessionScheme, sessionSchemes, projectName, subdivisions, metronome, barSubdivisions, timeSignature, markers]);
+  }, [autoSave, bpm, swing, loop, loopStart, loopEnd, stringColors, synesthesia, sessionScheme, sessionSchemes, projectName, subdivisions, metronome, barSubdivisions, timeSignature, markers]);
 
   const totalBeats = totalColumns(barSubdivisions);
   const handlePlayRef = useRef(null);
@@ -1185,10 +1195,14 @@ const restoreSnapshot = useCallback((snap) => {
 
         currentPlayable.forEach(track => {
           if (track.type === 'audio') return;
+          const swing = swingRef.current;
+          const swungBeat = applySwingBeat(beat, swing, 0.5);
           track.notes.forEach(note => {
             if (note.beat >= beat && note.beat < beat + 1) {
-              const offset = (note.beat - beat) * colDur;
-              const noteDur = (note.duration || 1) * colDur;
+              const swungNoteStart = applySwingBeat(note.beat, swing, 0.5);
+              const swungNoteEnd = applySwingBeat(note.beat + (note.duration || 1), swing, 0.5);
+              const offset = (swungNoteStart - swungBeat) * colDur;
+              const noteDur = Math.max(0.06, (swungNoteEnd - swungNoteStart) * colDur);
               playNoteAtTime(note.stringIndex, note.fret, nextBeatTime + offset, noteDur, note.velocity ?? 0.8, track.instrument, track.volume, note);
             }
           });
@@ -1496,7 +1510,7 @@ const restoreSnapshot = useCallback((snap) => {
             const track = createDefaultTrack();
             applyState({
               tracks: [track],
-              bpm: 120, loop: false, loopStart: 0, loopEnd: totalColumns(defaultBarSubdivisions()),
+              bpm: 120, swing: 50, loop: false, loopStart: 0, loopEnd: totalColumns(defaultBarSubdivisions()),
               stringColors: ['#ffffff','#ffffff','#ffffff','#ffffff','#ffffff','#ffffff'],
               synesthesia: [], sessionScheme: null, sessionSchemes: {},
               subdivisions: 4, markers: [], metronome: false,
@@ -1600,6 +1614,15 @@ const restoreSnapshot = useCallback((snap) => {
           min={30}
           max={300}
           onChange={setBpm}
+        />
+        <span className="toolbar-label">Swing %:</span>
+        <NumberInput
+          className="bpm-input"
+          value={Math.round(ratioToAmount(swing / 100) * 100)}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(amt) => setSwing(amountToRatio(amt / 100) * 100)}
         />
         <button className="play-btn" onClick={() => {
           if (notes.length > 0) setConfirmClear(true);
@@ -1783,6 +1806,8 @@ const restoreSnapshot = useCallback((snap) => {
           setPlayheadPreview={setPlayheadPreview}
           setSelectedBeat={setSelectedBeat}
           fretboardAutoForward={fretboardAutoForward}
+          swing={swing}
+          swungDisplay={swungDisplay}
          />
         <Timeline
           notes={notes}
@@ -1867,6 +1892,8 @@ const restoreSnapshot = useCallback((snap) => {
           bodyRefExternal={timelineBodyRef}
           position={position}
           setPosition={setPosition}
+          swing={swing}
+          swungDisplay={swungDisplay}
         />
         <div className={`chord-sidebar ${chordPaletteOpen ? 'open' : ''}`}>
           <button className="chord-sidebar-toggle" onClick={() => setChordPaletteOpen(o => !o)}>
@@ -1996,6 +2023,8 @@ const restoreSnapshot = useCallback((snap) => {
             setShowTimelineVerticalZoomButtons(v);
             try { localStorage.setItem('guitar-roll-timeline-vzoom-buttons', String(v)); } catch {}
           }}
+          swungDisplay={swungDisplay}
+          onSwungDisplayChange={(v) => { setSwungDisplay(v); try { localStorage.setItem('guitar-roll-swung-display', String(v)); } catch {} }}
           onHotkeysChange={setHotkeys}
         />
       )}
