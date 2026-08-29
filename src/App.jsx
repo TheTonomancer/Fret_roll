@@ -687,12 +687,18 @@ const restoreSnapshot = useCallback((snap) => {
         setSelectedNotes(atBeat);
       }
       
-      //Added event listener for the clear selections hotkey...
-            if (matchesHotkey(e, hk.clearSelection)) {
+      //Added event listener for the clear selections hotkey, which sets the selected note state to empty.
+      if (matchesHotkey(e, hk.clearSelection)) {
         e.preventDefault();
         setSelectedNotes(new Set());
       }
-      // ... which sets the selected note state to empty     
+
+      //Event listener for Select-All hotkey
+      if (matchesHotkey(e, hk.selectAll)) {
+        e.preventDefault();
+        const all = new Set(notesRef.current.map((_, i) => i));
+        setSelectedNotes(all);
+      }
       
       if (matchesHotkey(e, hk.deleteNotes) || matchesHotkey(e, hk.deleteNotesAlt)) {
         if (selectedNotesRef.current.size > 0) {
