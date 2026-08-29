@@ -48,7 +48,8 @@ const DEFAULT_HOTKEYS = {
   cursorMode: { label: 'Cursor Mode (Hold)', description: 'Hold to move the timeline cursor without placing a note', key: 'k' },
   jumpPrevNote: { label: 'Jump to Previous Note', description: 'Move playhead to the previous note position', key: 'ArrowLeft', modifiers: { ctrl: true } },
   jumpNextNote: { label: 'Jump to Next Note', description: 'Move playhead to the next note position', key: 'ArrowRight', modifiers: { ctrl: true } },
-  clearSelection: { label: 'Clear Selection', description: 'Clear all selected notes', key: '`' }
+  clearSelection: { label: 'Clear Selection', description: 'Clear all selected notes', key: '`' },
+  selectAll: { label: 'Select All', description: 'Select all notes on the current track', key: 'a', modifiers: { ctrl: true } }
 };
 
 // Non-editable actions shown for reference in the hotkey manager.
@@ -154,5 +155,5 @@ export const EDITABLE_HOTKEYS = [
   'zoomIn', 'zoomOut', 'zoomWheel', 'verticalZoomIn', 'verticalZoomOut', 'verticalZoomWheel', 'velocityWheel',
   'machineGunMode', 'fingeringMode', 'positionMode', 'fingerUp', 'fingerDown',
   'transposeSemiUp', 'transposeSemiDown', 'transposeOctaveUp', 'transposeOctaveDown', 'selectAtPlayhead',
-  'clearSelection', 'cursorMode', 'cheatSheet', 'escape',
+  'clearSelection', 'selectAll', 'cursorMode', 'cheatSheet', 'escape',
 ];
