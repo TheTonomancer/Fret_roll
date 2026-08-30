@@ -72,16 +72,17 @@ function App() {
   const autoForwardLastActionRef = useRef(false);
 
   // Snapshot helpers for undo/redo
-const takeSnapshot = useCallback(() => ({
+  const takeSnapshot = useCallback(() => ({
     tracks: JSON.parse(JSON.stringify(tracksRef.current)),
     activeTrackId: activeTrackIdRef.current,
     timeSignature: timeSigRef.current,
     barSubdivisions: barSubsRef.current,
     selectedBeat: selectedBeatRef.current,
+    selectedNotes: [...selectedNotesRef.current],    
     autoForward: autoForwardLastActionRef.current,
   }), []);
 
-const restoreSnapshot = useCallback((snap) => {
+  const restoreSnapshot = useCallback((snap) => {
     // Legacy: plain array means notes-only snapshot
     if (Array.isArray(snap)) {
       setActiveNotes(() => snap);
@@ -93,6 +94,7 @@ const restoreSnapshot = useCallback((snap) => {
       if (snap.timeSignature) setTimeSignature(snap.timeSignature);
       if (snap.barSubdivisions) setBarSubdivisions(snap.barSubdivisions);
       if (snap.selectedBeat !== undefined && snap.autoForward) setSelectedBeat(snap.selectedBeat);
+      if (snap.selectedNotes) setSelectedNotes(new Set(snap.selectedNotes));
       return;
     }
     setTracksTracked(() => snap.tracks);
@@ -103,8 +105,9 @@ const restoreSnapshot = useCallback((snap) => {
     if (snap.timeSignature) setTimeSignature(snap.timeSignature);
     if (snap.barSubdivisions) setBarSubdivisions(snap.barSubdivisions);
     if (snap.selectedBeat !== undefined && snap.autoForward) setSelectedBeat(snap.selectedBeat);
+    if (snap.selectedNotes) setSelectedNotes(new Set(snap.selectedNotes));
   }, [setTracksTracked, setActiveNotes]);
-
+  
   // setNotes: pushes undo, for one-shot operations
   const setNotes = useCallback((updater) => {
     undoStackRef.current.push(takeSnapshot());
@@ -699,6 +702,46 @@ const restoreSnapshot = useCallback((snap) => {
         const all = new Set(notesRef.current.map((_, i) => i));
         setSelectedNotes(all);
       }
+
+      //Split-note handler...
+      if (matchesHotkey(e, hk.splitNote)) {
+        e.preventDefault();
+        const beat = selectedBeatRef.current;
+        const currentNotes = notesRef.current;
+        const selected = selectedNotesRef.current;
+        const targets = selected.size > 0
+          ? [...selected].filter(i => i < currentNotes.length)
+          : currentNotes.map((_, i) => i);
+
+        const newNotes = [];
+        const newSelected = new Set();
+
+        currentNotes.forEach((note, i) => {
+          if (!targets.includes(i)) {
+            newNotes.push(note);
+            return;
+          }
+
+          const start = note.beat;
+          const end = note.beat + (note.duration || 1);
+          if (beat > start + 0.001 && beat < end - 0.001) {
+            const leftDur = beat - start;
+            const rightDur = end - beat;
+            const leftNote = { ...note, duration: leftDur };
+            const rightNote = { ...note, beat: beat, duration: rightDur };
+            newNotes.push(leftNote, rightNote);
+            newSelected.add(newNotes.length - 2);
+            newSelected.add(newNotes.length - 1);
+          } else {
+            newNotes.push(note);
+          }
+        });
+
+        if (newNotes.length !== currentNotes.length) {
+          setNotes(newNotes);
+          setSelectedNotes(newSelected);
+        }
+      }    // ...end of split-note handler
       
       if (matchesHotkey(e, hk.deleteNotes) || matchesHotkey(e, hk.deleteNotesAlt)) {
         if (selectedNotesRef.current.size > 0) {
